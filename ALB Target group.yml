@@ -1,0 +1,48 @@
+ALBTargetGroup:
+  Type: AWS::ElasticLoadBalancingV2::TargetGroup
+  Properties:
+    HealthCheckEnabled: True
+    HealthCheckIntervalSeconds: 60
+    HealthCheckPath: /
+    HealthCheckPort: traffic-port
+    HealthCheckProtocol: HTTP
+    HealthCheckTimeoutSeconds: 30
+    HealthyThresholdCount: 5
+    UnhealthyThresholdCount: 5
+    Port: 80
+    Protocol: HTTP
+    VpcId:
+      Fn::ImportValue: !Sub ${EnvName}-VPCID
+    Tags:
+      - Key: Name
+        Value: !Sub ${EnvName}-ALB-TG
+
+LatestInstanceAMI:
+  Description: Latest Image Id for EC2-Instance
+  Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+  Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+
+
+InstanceKeyPair:
+    Type: AWS::EC2::KeyPair
+    Properties:
+      KeyName: !Sub ${EnvName}-KP
+      KeyType: rsa
+
+
+
+{
+  "Id": "Policy1661553213659",
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "Stmt1661553212058",
+      "Action": [
+        "s3:GetObject"
+      ],
+      "Effect": "Allow",
+      "Resource": "arn:aws:s3:::udacity-static-web-site-demo/*",
+      "Principal": "*"
+    }
+  ]
+}

@@ -1,0 +1,237 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: UdacityProject-Udagram-Servers
+
+Parameters:
+  EnvName:
+    Type: String
+    Default: "Udagram"
+  LatestInstanceAMI:
+    Description: Latest Image Id for EC2-Instance
+    Type: String
+    Default: ami-052efd3df9dad4825
+  InstanceType:
+    Description: Allowed instance type to launch
+    Type: String
+    Default: "t2.small"
+
+Resources:
+  BastionKeyPair:
+    Type: AWS::EC2::KeyPair
+    Properties:
+      KeyName: !Sub ${EnvName}-Bastion-KP
+      KeyType: rsa
+  IAMRoleForInstances:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Provide permision for ec2 instance to s3 and ssm parameter store.
+      RoleName: Ec2InstanceRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      Policies:
+        - PolicyName: RA-S3-SSM
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                  - "s3:ListObjects"
+                  - "ssm:GetParameters"
+                  - "ssm:GetParametersByPath"
+                  - "ssm:DescribeParameters"
+                  - "kms:Decrypt"
+                Resource: "*"
+      Path: /
+      MaxSessionDuration: 10800
+      Tags:
+        - Key: Name
+          Value: RA-S3-SSM-Role
+  InstancesProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: EC2InstanceProfile
+      Path: /
+      Roles:
+        - !Ref IAMRoleForInstances
+  InstanceSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub ${EnvName}-VPCID
+      GroupDescription: Allow Inbound for HTTP & SSH From BH
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref LBSG
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          SourceSecurityGroupId: !Ref BastionSG
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvName}-APP-SG
+  LBSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub ${EnvName}-VPCID
+      GroupDescription: Allow Inbound for HTTP
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvName}-LB-SG
+  BastionSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub ${EnvName}-VPCID
+      GroupDescription: Allow Inbound for SSH
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 156.209.5.197/32
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 18.206.107.24/29
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvName}-Bastion-SG
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub ${EnvName}-LT
+      LaunchTemplateData:
+        InstanceType: !Ref InstanceType
+        ImageId: !Ref LatestInstanceAMI
+        IamInstanceProfile:
+          Arn: !GetAtt InstancesProfile.Arn
+        SecurityGroupIds:
+          - !Ref InstanceSG
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            apt-get update -y
+            sudo apt upgrade -y
+            sudo apt install -y awscli
+            apt-get install apache2 -y
+            systemctl start apache2.service
+            sudo aws s3 sync s3://udacity-static-web-site-demo /var/www/html
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: !Sub ${EnvName}-APP
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: !Sub ${EnvName}-ASG
+      VPCZoneIdentifier:
+        - Fn::ImportValue: PrivateSubnetsIds
+      MinSize: 1
+      MaxSize: 3
+      DesiredCapacity: 2
+      HealthCheckType: ELB
+      HealthCheckGracePeriod: 500
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplate
+        Version: !GetAtt LaunchTemplate.DefaultVersionNumber
+      TargetGroupARNs:
+        - !Ref ALBTargetGroup
+  ALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub ${EnvName}-ALB
+      SecurityGroups:
+        - !Ref LBSG
+      Subnets:
+        - !ImportValue PublicSubnetOneId
+        - !ImportValue PublicSubnetTwoId
+  ALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ALB
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ALBTargetGroup
+  ALBListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref ALBTargetGroup
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - /
+      ListenerArn: !Ref ALBListener
+      Priority: 1
+  ALBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckEnabled: True
+      HealthCheckIntervalSeconds: 60
+      HealthCheckPath: /
+      HealthCheckPort: traffic-port
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 30
+      HealthyThresholdCount: 5
+      UnhealthyThresholdCount: 5
+      Port: 80
+      Protocol: HTTP
+      VpcId:
+        Fn::ImportValue: !Sub ${EnvName}-VPCID
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvName}-ALB-TG
+  BastionInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref InstancesProfile
+      ImageId: !Ref LatestInstanceAMI
+      SecurityGroupIds:
+        - !Ref BastionSG
+      KeyName: !Ref BastionKeyPair
+      SubnetId: !ImportValue PublicSubnetOneId
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvName}-Bastion
+Outputs:
+  BastionInstancePublicIp:
+    Value: !GetAtt BastionInstance.PublicIp
+  ALBURL:
+    Value: !Join ["", ["http://", !GetAtt ALB.DNSName]]
+  BastionKeyPairId:
+    Value: !GetAtt BastionKeyPair.KeyPairId
