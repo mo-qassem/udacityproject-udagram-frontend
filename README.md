@@ -3,7 +3,7 @@ Deploy a High-Availability Web App using CloudFormation
 
 ![digram](https://github.com/mo-qassem/UdacityProject-Udagram-WebApp/blob/d4565ed2ba9f4468a0d243bca71e18c94e30819a/Diagram.png)
 
- **ToDo:**
+ **Extra:**
 
   1. Added VPC endpoint (Gateway) to provide secure access from app subnet to s3 bucket "udacity-static-web-site-demo" to download the web application files to app instances.
   2. Added Bastion instance for management purposes.
