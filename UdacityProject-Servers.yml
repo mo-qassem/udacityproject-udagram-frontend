@@ -131,8 +131,6 @@ Resources:
     Properties:
       LaunchTemplateName: !Sub ${EnvName}-LT
       LaunchTemplateData:
-        Monitoring:
-          Enabled: true
         InstanceType: !Ref InstanceType
         ImageId: !Ref LatestInstanceAMI
         KeyName: !Ref BastionKeyPair
@@ -190,7 +188,7 @@ Resources:
       Period: 60
       AlarmActions:
         - !Ref ASGSimplePolicyHigherCPU
-      Namespace: AWS/AutoScaling
+      Namespace: AWS/EC2
       Dimensions:
         - Name: AutoScalingGroupName
           Value: !Ref AutoScalingGroup
@@ -208,16 +206,15 @@ Resources:
       AlarmDescription: "Scale out if CPU < 40% for 1 minutes"
       EvaluationPeriods: 1
       Statistic: Average
-      ComparisonOperator: LowerThanThreshold
+      ComparisonOperator: LessThanThreshold
       Threshold: 40
       Period: 60
       AlarmActions:
         - !Ref ASGSimplePolicyLowerCPU
-      Namespace: AWS/AutoScaling
+      Namespace: AWS/EC2
       Dimensions:
         - Name: AutoScalingGroupName
           Value: !Ref AutoScalingGroup
-
   ALB:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
