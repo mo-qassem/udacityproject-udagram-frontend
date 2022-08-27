@@ -12,7 +12,7 @@ Parameters:
   InstanceType:
     Description: Allowed instance type to launch
     Type: String
-    Default: "t2.small"
+    Default: "t2.micro"
 
 Resources:
   BastionKeyPair:
@@ -23,7 +23,7 @@ Resources:
   IAMRoleForInstances:
     Type: AWS::IAM::Role
     Properties:
-      Description: Provide permision for ec2 instance to s3 and ssm parameter store.
+      Description: Provide permision for ec2 instance to s3, ssm parameter store and access for CWAgent.
       RoleName: Ec2InstanceRole
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
@@ -48,6 +48,14 @@ Resources:
                   - "ssm:GetParametersByPath"
                   - "ssm:DescribeParameters"
                   - "kms:Decrypt"
+                  - "cloudwatch:PutMetricData"
+                  - "ec2:DescribeVolumes"
+                  - "ec2:DescribeTags"
+                  - "logs:PutLogEvents"
+                  - "logs:DescribeLogStreams"
+                  - "logs:DescribeLogGroups"
+                  - "logs:CreateLogStream"
+                  - "logs:CreateLogGroup"
                 Resource: "*"
       Path: /
       MaxSessionDuration: 10800
@@ -141,13 +149,17 @@ Resources:
         UserData:
           Fn::Base64: !Sub |
             #!/bin/bash
-            apt-get update -y
-            sudo apt upgrade -y
-            sudo apt install -y awscli
-            sudo apt install stress -y
-            apt-get install apache2 -y
+            sudo apt-get update -y
+            sudo apt-get upgrade -y
+            sudo apt-get install -y awscli
+            sudo apt-get install stress -y
+            sudo apt-get install apache2 -y
             systemctl start apache2.service
             sudo aws s3 sync s3://udacity-static-web-site-demo /var/www/html
+            wget https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb
+            cd /home/ubuntu
+            sudo dpkg -i -E ./amazon-cloudwatch-agent.deb
+            sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c ssm:AmazonCloudWatch-linux
         TagSpecifications:
           - ResourceType: instance
             Tags:
