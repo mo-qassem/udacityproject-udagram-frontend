@@ -141,7 +141,6 @@ Resources:
       LaunchTemplateData:
         InstanceType: !Ref InstanceType
         ImageId: !Ref LatestInstanceAMI
-        KeyName: !Ref BastionKeyPair
         IamInstanceProfile:
           Arn: !GetAtt InstancesProfile.Arn
         SecurityGroupIds:
