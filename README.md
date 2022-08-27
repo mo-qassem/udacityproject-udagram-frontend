@@ -1,8 +1,9 @@
 # UdacityProject-Udagram-WebApp
-Simple high available web app deployed in AWS
+Deploy a High-Availability Web App using CloudFormation
 
 ![digram](https://github.com/mo-qassem/UdacityProject-Udagram-WebApp/blob/d4565ed2ba9f4468a0d243bca71e18c94e30819a/Diagram.png)
 
+ **ToDo:**
 
   1. Added VPC endpoint (gateway) to provide secure access from app subnet to s3 bucket "udacity-static-web-site-demo" to download the web application files to app instances.
   2. Added jump box instance for management purposes.
