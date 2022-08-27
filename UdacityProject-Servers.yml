@@ -157,7 +157,6 @@ Resources:
             systemctl start apache2.service
             sudo aws s3 sync s3://udacity-static-web-site-demo /var/www/html
             wget https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb
-            cd /home/ubuntu
             sudo dpkg -i -E ./amazon-cloudwatch-agent.deb
             sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c ssm:AmazonCloudWatch-linux
         TagSpecifications:
