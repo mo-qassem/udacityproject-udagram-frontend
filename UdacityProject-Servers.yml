@@ -113,7 +113,7 @@ Resources:
         - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
-          CidrIp: 156.209.5.197/32
+          CidrIp: 156.209.14.148/32
         - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
@@ -131,8 +131,11 @@ Resources:
     Properties:
       LaunchTemplateName: !Sub ${EnvName}-LT
       LaunchTemplateData:
+        Monitoring:
+          Enabled: true
         InstanceType: !Ref InstanceType
         ImageId: !Ref LatestInstanceAMI
+        KeyName: !Ref BastionKeyPair
         IamInstanceProfile:
           Arn: !GetAtt InstancesProfile.Arn
         SecurityGroupIds:
@@ -143,6 +146,7 @@ Resources:
             apt-get update -y
             sudo apt upgrade -y
             sudo apt install -y awscli
+            sudo apt install stress -y
             apt-get install apache2 -y
             systemctl start apache2.service
             sudo aws s3 sync s3://udacity-static-web-site-demo /var/www/html
@@ -167,6 +171,53 @@ Resources:
         Version: !GetAtt LaunchTemplate.DefaultVersionNumber
       TargetGroupARNs:
         - !Ref ALBTargetGroup
+  ASGSimplePolicyHigherCPU:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: !Ref AutoScalingGroup
+      PolicyType: SimpleScaling
+      AdjustmentType: ChangeInCapacity
+      ScalingAdjustment: 1
+  HigherCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      MetricName: CPUUtilization
+      AlarmDescription: "Scale out if CPU > 40% for 1 minutes"
+      EvaluationPeriods: 1
+      Statistic: Average
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 40
+      Period: 60
+      AlarmActions:
+        - !Ref ASGSimplePolicyHigherCPU
+      Namespace: AWS/AutoScaling
+      Dimensions:
+        - Name: AutoScalingGroupName
+          Value: !Ref AutoScalingGroup
+  ASGSimplePolicyLowerCPU:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: !Ref AutoScalingGroup
+      PolicyType: SimpleScaling
+      AdjustmentType: ChangeInCapacity
+      ScalingAdjustment: -1
+  LowerCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      MetricName: CPUUtilization
+      AlarmDescription: "Scale out if CPU < 40% for 1 minutes"
+      EvaluationPeriods: 1
+      Statistic: Average
+      ComparisonOperator: LowerThanThreshold
+      Threshold: 40
+      Period: 60
+      AlarmActions:
+        - !Ref ASGSimplePolicyLowerCPU
+      Namespace: AWS/AutoScaling
+      Dimensions:
+        - Name: AutoScalingGroupName
+          Value: !Ref AutoScalingGroup
+
   ALB:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:

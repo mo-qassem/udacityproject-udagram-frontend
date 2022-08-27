@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: UdacityProject-Udagram-Servers
+Description: UdacityProject-Udagram-Network
 
 Parameters:
   EnvName:
