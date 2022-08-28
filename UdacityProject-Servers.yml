@@ -281,7 +281,6 @@ Resources:
       ImageId: !Ref LatestInstanceAMI
       SecurityGroupIds:
         - !Ref BastionSG
-      KeyName: !Ref BastionKeyPair
       SubnetId: !ImportValue PublicSubnetOneId
       Tags:
         - Key: Name
